@@ -6,22 +6,28 @@
 
     <defaultProtocol type="Servlet 3.0" />
     
-    <!--<extension qualifier="docker">-->
-        <!--<property name="serverVersion">1.12</property>-->
-        <!--<property name="serverUri">unix:///var/run/docker.sock</property>-->
-        <!--<property name="definitionFormat">CUBE</property>-->
-        <!--<property name="tlsVerify">false</property>-->
-        <!--<property name="dockerContainers">-->
-            <!--wildfly:-->
-                <!--image: sfcoy/wildfly-it:latest:latest-->
-                <!--exposedPorts: [8080/tcp]-->
-                <!--await:-->
-                    <!--strategy: polling-->
-                <!--portBindings: [9090/tcp, 8080/tcp]-->
-        <!--</property>-->
-    <!--</extension>-->
+    <extension qualifier="docker">
+        <property name="serverVersion">1.32</property>
+        <property name="serverUri">unix:///var/run/docker.sock</property>
+        <property name="definitionFormat">CUBE</property>
+        <property name="tlsVerify">false</property>
+        <property name="dockerContainers">
+            wildfly-it:
+                image: local/wildfly-it:latest
+                exposedPorts: [9990/tcp, 8080/tcp]
+                links: [mongo-it]
+                await:
+                    strategy: polling
+                portBindings: [9990/tcp, 8080/tcp]
+            mongo-it:
+                image: mongo:latest
+                exposedPorts: [27017/tcp]
+                portBindings: [27017/tcp]
 
-    <container qualifier="wildfly-remote" default="true">
+        </property>
+    </extension>
+
+    <container qualifier="wildfly-it" default="true">
         <configuration>
             <property name="managementAddress">127.0.0.1</property>
             <property name="managementPort">9990</property>

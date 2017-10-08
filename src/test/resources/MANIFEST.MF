@@ -1,0 +1,2 @@
+Manifest-Version: 1.0
+Dependencies: org.hibernate.ogm:5.1 services, org.hibernate.ogm.mongodb:5.1 services

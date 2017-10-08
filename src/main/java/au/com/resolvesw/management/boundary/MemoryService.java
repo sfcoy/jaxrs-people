@@ -1,4 +1,4 @@
-package au.com.resolvesw.system.boundary;
+package au.com.resolvesw.management.boundary;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;

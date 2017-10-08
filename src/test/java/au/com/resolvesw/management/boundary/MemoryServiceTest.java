@@ -1,4 +1,4 @@
-package au.com.resolvesw.system.boundary;
+package au.com.resolvesw.management.boundary;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
@@ -8,12 +8,15 @@ import java.io.StringReader;
 import java.net.URISyntaxException;
 import java.net.URL;
 
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
+import javax.json.JsonValue;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 import org.hamcrest.Description;
-import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.jboss.arquillian.container.test.api.Deployment;
@@ -26,13 +29,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import au.com.resolvesw.JAXRSConfiguration;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 @RunWith(Arquillian.class)
 public class MemoryServiceTest {
 
-    @Deployment(testable=false)
+    @Deployment
     public static WebArchive create() {
         try {
             return ShrinkWrap.create(WebArchive.class, "MemoryServiceTest.war")
@@ -55,8 +56,8 @@ public class MemoryServiceTest {
         assertThat(response.getStatus(), is(200));
         assertThat(response.hasEntity(), is(true));
         String responseJson = response.readEntity(String.class);
-        ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode jsonNode = objectMapper.readTree(new StringReader(responseJson));
+        JsonReader jsonReader = Json.createReader(new StringReader(responseJson));
+        JsonObject jsonNode = jsonReader.readObject();
         assertThat(jsonNode.get("init"), is(integerValue()));
         assertThat(jsonNode.get("used"), is(integerValue()));
         assertThat(jsonNode.get("committed"), is(integerValue()));
@@ -76,17 +77,16 @@ public class MemoryServiceTest {
         assertThat(response.getStatus(), is(200));
         assertThat(response.hasEntity(), is(true));
         String responseJson = response.readEntity(String.class);
-        ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode jsonNode = objectMapper.readTree(new StringReader(responseJson));
+        JsonReader jsonReader = Json.createReader(new StringReader(responseJson));
+        JsonObject jsonNode = jsonReader.readObject();
         assertThat(jsonNode.get("init"), is(integerValue()));
         assertThat(jsonNode.get("used"), is(integerValue()));
         assertThat(jsonNode.get("committed"), is(integerValue()));
         assertThat(jsonNode.get("max"), is(integerValue()));
     }
 
-    @Factory
-    private static <T> Matcher<JsonNode> integerValue() {
-        return new TypeSafeMatcher<JsonNode>() {
+    private static <T> Matcher<JsonValue> integerValue() {
+        return new TypeSafeMatcher<JsonValue>() {
 
             @Override
             public void describeTo(Description description) {
@@ -94,11 +94,10 @@ public class MemoryServiceTest {
             }
 
             @Override
-            protected boolean matchesSafely(JsonNode node) {
+            protected boolean matchesSafely(JsonValue node) {
                 if (node != null) {
                     try {
-                        Integer.valueOf(node.asText());
-                        return true;
+                        return node.getValueType() == JsonValue.ValueType.NUMBER;
                     } catch (NumberFormatException e) {
                         return false;
                     }
