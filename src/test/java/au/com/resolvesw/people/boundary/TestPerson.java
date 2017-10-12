@@ -2,8 +2,9 @@ package au.com.resolvesw.people.boundary;
 
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
-import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+
+import org.bson.Document;
 
 /**
  * @author sfcoy
@@ -25,7 +26,7 @@ public class TestPerson {
      */
     static class Builder {
 
-        TestPerson persona = new TestPerson();
+        final TestPerson persona = new TestPerson();
 
         Builder withEmailAddress(String emailAddress) {
             persona.emailAddress = emailAddress;
@@ -51,5 +52,12 @@ public class TestPerson {
             return persona;
         }
 
+        Document getDocument() {
+            return new Document()
+                    .append("emailAddress", persona.emailAddress)
+                    .append("familyName", persona.familyName)
+                    .append("givenNames", persona.givenNames)
+                    .append("username", persona.username);
+        }
     }
 }

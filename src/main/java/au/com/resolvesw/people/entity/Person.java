@@ -9,7 +9,6 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
-import javax.persistence.Index;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -21,10 +20,7 @@ import org.hibernate.validator.constraints.Email;
 import org.hibernate.validator.constraints.NotBlank;
 
 @Entity
-@Table(name = "people",
-        indexes = {
-            @Index(columnList = "emailAddress", name = "emailAddress_idx")
-        })
+@Table(name = "people")
 public class Person implements Serializable {
 
     private static final long serialVersionUID = 6946537000698428498L;
@@ -46,6 +42,7 @@ public class Person implements Serializable {
 
     @NotNull
     @Email(regexp = "^[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,6}$", flags = Pattern.Flag.CASE_INSENSITIVE)
+    @Column(unique = true)
     private String emailAddress;
 
     @Temporal(TemporalType.TIMESTAMP)

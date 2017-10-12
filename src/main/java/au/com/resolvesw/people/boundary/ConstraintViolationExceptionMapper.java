@@ -1,8 +1,10 @@
-package au.com.resolvesw.people.controller;
+package au.com.resolvesw.people.boundary;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 
+import javax.inject.Inject;
 import javax.validation.ConstraintViolation;
 import javax.validation.ConstraintViolationException;
 import javax.validation.Path;
@@ -13,8 +15,12 @@ import javax.ws.rs.ext.Provider;
 @Provider
 public class ConstraintViolationExceptionMapper implements ExceptionMapper<ConstraintViolationException>{
 
+    @Inject
+    private Logger logger;
+
     @Override
     public Response toResponse(ConstraintViolationException exception) {
+//        logger.log(Level.WARNING, "Constraint violation: {}", exception.getMessage());
         List<String> messages = new ArrayList<>();
         for (ConstraintViolation cv : exception.getConstraintViolations()) {
             String propertyName = "";
