@@ -15,8 +15,10 @@ The deployment platform for all this is a WildFly 10.1 server that has integrate
 Hibernate OGM functionality.
 
 Unit tests are built using [Arquillian Cube](http://arquillian.org/arquillian-cube/)
-and exploits the [WildFly with Hibernate OGM + Search](https://github.com/sfcoy/wildfly-ogm)
-Docker image. This image must be prebuilt before attempting to run these tests.
+and exploits the [WildFly with Hibernate OGM + Search](https://hub.docker.com/r/sfcoy/wildfly-ogm/)
+docker image.
+
+    docker pull sfcoy/wildfly-ogm
 
 Arquillian Cube starts up MongoDB and WildFly OGM in separate Docker processes and the test
 classes are deployed for client side testing.
@@ -24,7 +26,7 @@ classes are deployed for client side testing.
 Notes
 --
 
-This implementation is *not portable* due to:
+This implementation is *not Java EE portable* due to:
 
  * the use of Hibernate OGM to store data in Mongo DB
  * the use of [Hibernate Validator](http://hibernate.org/validator/), which ships with WildFly.

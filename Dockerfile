@@ -1,4 +1,4 @@
-FROM local/wildfly-ogm:latest
+FROM sfcoy/wildfly-ogm:latest
 
 ENV ADMIN_USER admin
 ENV ADMIN_PASSWORD Admin#70365
