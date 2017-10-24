@@ -23,6 +23,8 @@ docker image.
 Arquillian Cube starts up MongoDB and WildFly OGM in separate Docker processes and the test
 classes are deployed for client side testing.
 
+And the cool thing is **the final product "people.war" is only 14k in size** and contains no WEB-INF/lib jar files.
+
 Notes
 --
 
