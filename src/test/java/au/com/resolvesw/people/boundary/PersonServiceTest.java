@@ -1,10 +1,12 @@
 package au.com.resolvesw.people.boundary;
 
 import static com.mongodb.client.model.Filters.eq;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
-import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
 import static org.junit.Assert.assertThat;
 
 import java.net.URI;
@@ -38,8 +40,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import au.com.resolvesw.JAXRSConfiguration;
-import au.com.resolvesw.logging.boundary.LoggerProducer;
-import au.com.resolvesw.people.entity.Person;
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -56,12 +56,8 @@ public class PersonServiceTest {
     public static WebArchive create() {
         try {
             return ShrinkWrap.create(WebArchive.class, "PersonServiceTest.war")
-                    .addClasses(JAXRSConfiguration.class,
-                                PersonService.class,
-                                Person.class,
-                                DuplicateKeyExceptionMapper.class,
-                                LoggerProducer.class,
-                                ConstraintViolationExceptionMapper.class)
+                    .addPackages(true, "au.com.resolvesw.people", "au.com.resolvesw.logging")
+                    .addClass(JAXRSConfiguration.class)
                     .addAsResource("persistence.xml", "META-INF/persistence.xml")
                     .addAsManifestResource("MANIFEST.MF")
                     .addAsManifestResource("persistence.xml")
@@ -92,7 +88,7 @@ public class PersonServiceTest {
                 .withUsername("fred")
                 .withGivenNames("Fred")
                 .withFamilyName("Bloggs");
-        Response response = ClientBuilder.newClient()
+        final Response response = ClientBuilder.newClient()
                 .target(resource.toURI())
                 .path("resources/people/")
                 .request(MediaType.APPLICATION_JSON_TYPE)
@@ -101,13 +97,13 @@ public class PersonServiceTest {
                 .invoke();
         
         assertThat(response.getStatus(), is(HttpServletResponse.SC_CREATED));
-        URI location = response.getLocation();
+        final URI location = response.getLocation();
         assertThat(location.getPath(), matchesPattern(".*/resources/people/[\\p{XDigit}]{24}"));
         assertThat(response.hasEntity(), is(false));
 
-        String createdId = location.toString().substring((resource.toString() + "resources/people/").length());
+        final String createdId = location.toString().substring((resource.toString() + "resources/people/").length());
 
-        Document createdPerson = findDocumentWithId(createdId);
+        final Document createdPerson = findMongoDocumentWithId(createdId);
         assertThat(createdPerson.get("username"), is("fred"));
         assertThat(createdPerson.get("givenNames"), is("Fred"));
         assertThat(createdPerson.get("familyName"), is("Bloggs"));
@@ -123,7 +119,7 @@ public class PersonServiceTest {
                 .withUsername("")
                 .withGivenNames("Fred")
                 .withFamilyName("Bloggs");
-        Response response = ClientBuilder.newClient()
+        final Response response = ClientBuilder.newClient()
                 .target(resource.toURI())
                 .path("resources/people/")
                 .request(MediaType.APPLICATION_JSON_TYPE)
@@ -133,10 +129,38 @@ public class PersonServiceTest {
 
         assertThat(response.getStatus(), is(HttpServletResponse.SC_BAD_REQUEST));
         assertThat(response.hasEntity(), is(true));
-        GenericType<List<String>> entityType = new GenericType<List<String>>() {};
-        List<String> entities = response.readEntity(entityType);
-        assertThat(entities, is(not(empty())));
-        assertThat(entities, contains("Person.username may not be empty"));
+        final List<ConstraintViolation> constraintViolations = response.readEntity(ConstraintViolation.genericType);
+        assertThat(constraintViolations, hasSize(1));
+        final ConstraintViolation constraintViolation = constraintViolations.get(0);
+        assertThat(constraintViolation.getPropertyName(), endsWith("username"));
+        assertThat(constraintViolation.getMessage(), is("may not be empty"));
+        assertThat(constraintViolation.getInvalidValue(), is(""));
+    }
+
+    @Test
+    @RunAsClient
+    public void shouldFailToCreatePersonWithBlankNames(@ArquillianResource URL resource) throws URISyntaxException {
+        final TestPerson.Builder builder = new TestPerson.Builder()
+                .withEmailAddress("fred@bloggs.net")
+                .withUsername("fred")
+                .withGivenNames("")
+                .withFamilyName("");
+        final Response response = ClientBuilder.newClient()
+                .target(resource.toURI())
+                .path("resources/people/")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .buildPost(Entity.entity(builder.get(), MediaType.APPLICATION_JSON_TYPE))
+                .invoke();
+
+        assertThat(response.getStatus(), is(HttpServletResponse.SC_BAD_REQUEST));
+        assertThat(response.hasEntity(), is(true));
+        final List<ConstraintViolation> constraintViolations = response.readEntity(ConstraintViolation.genericType);
+        assertThat(constraintViolations, is(not(empty())));
+        final ConstraintViolation constraintViolation = constraintViolations.get(0);
+        assertThat(constraintViolation.getPropertyName(), anyOf(endsWith("familyName"), endsWith("givenNames")));
+        assertThat(constraintViolation.getMessage(), is("may not be empty"));
+        assertThat(constraintViolation.getInvalidValue(), is(""));
     }
 
     @Test
@@ -154,7 +178,7 @@ public class PersonServiceTest {
                 .withUsername("fred")
                 .withGivenNames("Fred")
                 .withFamilyName("Bloggs");
-        Response response = ClientBuilder.newClient()
+        final Response response = ClientBuilder.newClient()
                 .target(resource.toURI())
                 .path("resources/people/")
                 .request(MediaType.APPLICATION_JSON_TYPE)
@@ -164,9 +188,8 @@ public class PersonServiceTest {
 
         assertThat(response.getStatus(), is(HttpServletResponse.SC_CONFLICT));
         assertThat(response.hasEntity(), is(true));
-        GenericType<String> entityType = new GenericType<String>() {
-        };
-        String responseEntity = response.readEntity(entityType);
+        final GenericType<String> entityType = new GenericType<String>() {};
+        final String responseEntity = response.readEntity(entityType);
         assertThat(responseEntity, matchesPattern(".*duplicate key.*fred.*"));
     }
 
@@ -174,7 +197,7 @@ public class PersonServiceTest {
     @RunAsClient
     public void shouldFailToCreatePersonWithDuplicateEmail(@ArquillianResource URL resource)
             throws URISyntaxException {
-        MongoCollection peopleCollection = mongoDatabase.getCollection("people");
+        final MongoCollection peopleCollection = mongoDatabase.getCollection("people");
         peopleCollection.insertOne(new TestPerson.Builder()
                 .withEmailAddress("fred@bloggs.net")
                 .withUsername("fred.jones")
@@ -185,7 +208,7 @@ public class PersonServiceTest {
                 .withUsername("fred")
                 .withGivenNames("Fred")
                 .withFamilyName("Bloggs");
-        Response response = ClientBuilder.newClient()
+        final Response response = ClientBuilder.newClient()
                 .target(resource.toURI())
                 .path("resources/people/")
                 .request(MediaType.APPLICATION_JSON_TYPE)
@@ -195,9 +218,8 @@ public class PersonServiceTest {
 
         assertThat(response.getStatus(), is(HttpServletResponse.SC_CONFLICT));
         assertThat(response.hasEntity(), is(true));
-        GenericType<String> entityType = new GenericType<String>() {
-        };
-        String responseEntity = response.readEntity(entityType);
+        final GenericType<String> entityType = new GenericType<String>() {};
+        final String responseEntity = response.readEntity(entityType);
         assertThat(responseEntity, matchesPattern(".*duplicate key.*fred@bloggs\\.net.*"));
     }
 
@@ -209,7 +231,7 @@ public class PersonServiceTest {
                 .withUsername("fred")
                 .withGivenNames("Fred")
                 .withFamilyName("Bloggs");
-        Response response = ClientBuilder.newClient()
+        final Response response = ClientBuilder.newClient()
                 .target(resource.toURI())
                 .path("resources/people/")
                 .request(MediaType.APPLICATION_JSON_TYPE)
@@ -219,14 +241,16 @@ public class PersonServiceTest {
 
         assertThat(response.getStatus(), is(HttpServletResponse.SC_BAD_REQUEST));
         assertThat(response.hasEntity(), is(true));
-        GenericType<List<String>> entityType = new GenericType<List<String>>() {};
-        List<String> entities = response.readEntity(entityType);
-        assertThat(entities, is(not(empty())));
-        assertThat(entities, contains("Person.emailAddress not a well-formed email address"));
+        final List<ConstraintViolation> constraintViolations = response.readEntity(ConstraintViolation.genericType);
+        assertThat(constraintViolations, is(not(empty())));
+        final ConstraintViolation constraintViolation = constraintViolations.get(0);
+        assertThat(constraintViolation.getPropertyName(), endsWith("emailAddress"));
+        assertThat(constraintViolation.getMessage(), is("not a well-formed email address"));
+        assertThat(constraintViolation.getInvalidValue(), is("fred\\bloggs.net"));
     }
 
-    private Document findDocumentWithId(String createdId) {
-        MongoCollection<Document> collection = mongoDatabase.getCollection("people");
+    private Document findMongoDocumentWithId(String createdId) {
+        final MongoCollection<Document> collection = mongoDatabase.getCollection("people");
         return collection.find(eq("_id", new ObjectId(createdId))).first();
     }
 
@@ -247,4 +271,41 @@ public class PersonServiceTest {
             }
         };
     }
+
+    private static class ConstraintViolation {
+        private String propertyName;
+        private String message;
+        private String invalidValue;
+
+        final static GenericType<List<ConstraintViolation>> genericType
+                = new GenericType<List<ConstraintViolation>>() {};
+
+        public ConstraintViolation() {
+        }
+
+        public String getPropertyName() {
+            return propertyName;
+        }
+
+        public void setPropertyName(String propertyName) {
+            this.propertyName = propertyName;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
+        }
+
+        public String getInvalidValue() {
+            return invalidValue;
+        }
+
+        public void setInvalidValue(String invalidValue) {
+            this.invalidValue = invalidValue;
+        }
+    }
+
 }
