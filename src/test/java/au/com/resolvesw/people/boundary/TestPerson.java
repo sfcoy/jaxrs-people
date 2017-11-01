@@ -1,5 +1,8 @@
 package au.com.resolvesw.people.boundary;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlRootElement;
@@ -13,13 +16,20 @@ import org.bson.Document;
 @XmlAccessorType(XmlAccessType.FIELD)
 public class TestPerson {
 
-    private String emailAddress;
+    // Lifted from org.hibernate.ogm.type.descriptor.impl.CalendarTimeZoneDateTimeTypeDescriptor
+    private static final String DATE_TIME_TIMEZONE_FORMAT = "yyyy/MM/dd HH:mm:ss:SSS Z";
 
-    private String username;
+    String id;
+    
+    String emailAddress;
 
-    private String familyName;
+    String username;
 
-    private String givenNames;
+    String familyName;
+
+    String givenNames;
+
+    String startDate;
     
     /**
      * @author sfcoy
@@ -57,7 +67,15 @@ public class TestPerson {
                     .append("emailAddress", persona.emailAddress)
                     .append("familyName", persona.familyName)
                     .append("givenNames", persona.givenNames)
-                    .append("username", persona.username);
+                    .append("username", persona.username)
+                    .append("startDate", createDateTimeTimeZoneFormat().format(Calendar.getInstance().getTime()));
         }
     }
+    
+    private static SimpleDateFormat createDateTimeTimeZoneFormat() {
+        SimpleDateFormat dateTimeTimeZoneFormat = new SimpleDateFormat( DATE_TIME_TIMEZONE_FORMAT );
+        dateTimeTimeZoneFormat.setLenient( false );
+        return dateTimeTimeZoneFormat;
+    }
+
 }

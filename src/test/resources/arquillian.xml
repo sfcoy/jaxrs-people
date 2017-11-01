@@ -14,11 +14,11 @@
         <property name="dockerContainers">
             wildfly-it:
                 image: local/wildfly-it:latest
-                exposedPorts: [9990/tcp, 8080/tcp]
+                exposedPorts: [9990/tcp, 8080/tcp, 8787/tcp]
                 links: [mongo-it]
                 await:
                     strategy: polling
-                portBindings: [9990/tcp, 8080/tcp]
+                portBindings: [9990/tcp, 8080/tcp, 8787/tcp]
             mongo-it:
                 image: mongo:latest
                 exposedPorts: [27017/tcp]

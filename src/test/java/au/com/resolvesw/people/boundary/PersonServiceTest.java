@@ -3,15 +3,19 @@ package au.com.resolvesw.people.boundary;
 import static com.mongodb.client.model.Filters.eq;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.junit.Assert.assertThat;
 
+import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -22,6 +26,9 @@ import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.hamcrest.Description;
@@ -35,6 +42,7 @@ import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.asset.EmptyAsset;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -56,7 +64,10 @@ public class PersonServiceTest {
     public static WebArchive create() {
         try {
             return ShrinkWrap.create(WebArchive.class, "PersonServiceTest.war")
-                    .addPackages(true, "au.com.resolvesw.people", "au.com.resolvesw.logging")
+                    .addPackages(true,
+                            "au.com.resolvesw.people",
+                            "au.com.resolvesw.logging",
+                            "au.com.resolvesw.controller")
                     .addClass(JAXRSConfiguration.class)
                     .addAsResource("persistence.xml", "META-INF/persistence.xml")
                     .addAsManifestResource("MANIFEST.MF")
@@ -78,6 +89,10 @@ public class PersonServiceTest {
     public void closeMongoConnection() {
         peopleCollection.deleteMany(new Document());
         mongoClient.close();
+    }
+
+    @AfterClass
+    public static void nop() {
     }
 
     @Test
@@ -109,6 +124,13 @@ public class PersonServiceTest {
         assertThat(createdPerson.get("familyName"), is("Bloggs"));
         assertThat(createdPerson.get("emailAddress"), is("fred@bloggs.net"));
 
+        final Response response2 = ClientBuilder.newClient()
+                .target(response.getLocation())
+                .request()
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .buildGet()
+                .invoke();
+        
     }
 
     @Test
@@ -249,9 +271,119 @@ public class PersonServiceTest {
         assertThat(constraintViolation.getInvalidValue(), is("fred\\bloggs.net"));
     }
 
+    @Test
+    @RunAsClient
+    public void shouldFindPersonById(@ArquillianResource URL resource) throws URISyntaxException {
+        final MongoCollection peopleCollection = mongoDatabase.getCollection("people");
+        final Document testPersonDocument = new TestPerson.Builder()
+                .withEmailAddress("fred@bloggs.net")
+                .withUsername("fred.jones")
+                .withGivenNames("Fred")
+                .withFamilyName("Jones").getDocument();
+        peopleCollection.insertOne(testPersonDocument);
+
+        final Response response = ClientBuilder.newClient()
+                .target(resource.toURI())
+                .path("resources/people/")
+                .path(testPersonDocument.getObjectId("_id").toString())
+                .request()
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .buildGet()
+                .invoke();
+
+        assertThat(response.getStatus(), is(HttpServletResponse.SC_OK));
+        assertThat(response.hasEntity(), is(true));
+
+        final TestPerson foundPerson = response.readEntity(TestPerson.class);
+        assertThat(foundPerson.id, is(testPersonDocument.getObjectId("_id").toString()));
+        assertThat(foundPerson.username, is(testPersonDocument.get("username")));
+        assertThat(foundPerson.emailAddress, is(testPersonDocument.get("emailAddress")));
+        assertThat(foundPerson.givenNames, is(testPersonDocument.get("givenNames")));
+        assertThat(foundPerson.familyName, is(testPersonDocument.get("familyName")));
+    }
+
+    @Test
+    @RunAsClient
+    public void shouldFindFirstPageOfPeople(@ArquillianResource URL resource) throws URISyntaxException, IOException {
+        loadTestData("au-500.csv");
+        final Response response = ClientBuilder.newClient()
+                .target(resource.toURI())
+                .path("resources/people/")
+                .queryParam("page", 1)
+                .queryParam("pageSize", 25)
+                .request()
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .buildGet()
+                .invoke();
+
+        assertThat(response.getStatus(), is(HttpServletResponse.SC_OK));
+        assertThat(response.hasEntity(), is(true));
+
+        final List<TestPerson> foundPageOfPeople = response.readEntity(new GenericType<List<TestPerson>>() {});
+        assertThat(foundPageOfPeople, is(iterableWithSize(25)));
+
+        final TestPerson firstPersonFound = foundPageOfPeople.get(0);
+        assertThat(firstPersonFound.username, is("rebbecca.didio"));
+        assertThat(firstPersonFound.emailAddress, is("rebbecca.didio@didio.com.au"));
+        assertThat(firstPersonFound.givenNames, is("Rebbecca"));
+        assertThat(firstPersonFound.familyName, is("Didio"));
+
+        final TestPerson lastPersonFound = foundPageOfPeople.get(24);
+        assertThat(lastPersonFound.username, is("barrie.nicley"));
+        assertThat(lastPersonFound.emailAddress, is("bnicley@nicley.com.au"));
+        assertThat(lastPersonFound.givenNames, is("Barrie"));
+        assertThat(lastPersonFound.familyName, is("Nicley"));
+    }
+
+    @Test
+    @RunAsClient
+    public void shouldFindLastPageOfPeople(@ArquillianResource URL resource) throws URISyntaxException, IOException {
+        loadTestData("au-500.csv");
+        final Response response = ClientBuilder.newClient()
+                .target(resource.toURI())
+                .path("resources/people/")
+                .queryParam("page", 20)
+                .queryParam("pageSize", 25)
+                .request()
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .buildGet()
+                .invoke();
+
+        assertThat(response.getStatus(), is(HttpServletResponse.SC_OK));
+        assertThat(response.hasEntity(), is(true));
+
+        final List<TestPerson> foundPageOfPeople = response.readEntity(new GenericType<List<TestPerson>>() {});
+        assertThat(foundPageOfPeople, is(iterableWithSize(25)));
+
+        final TestPerson firstPersonFound = foundPageOfPeople.get(0);
+        assertThat(firstPersonFound.username, is("onita.milbrandt"));
+        assertThat(firstPersonFound.emailAddress, is("onita.milbrandt@milbrandt.com.au"));
+        assertThat(firstPersonFound.givenNames, is("Onita"));
+        assertThat(firstPersonFound.familyName, is("Milbrandt"));
+
+        final TestPerson lastPersonFound = foundPageOfPeople.get(24);
+        assertThat(lastPersonFound.username, is("lenora.delacruz"));
+        assertThat(lastPersonFound.emailAddress, is("lenora@delacruz.net.au"));
+        assertThat(lastPersonFound.givenNames, is("Lenora"));
+        assertThat(lastPersonFound.familyName, is("Delacruz"));
+    }
+
     private Document findMongoDocumentWithId(String createdId) {
         final MongoCollection<Document> collection = mongoDatabase.getCollection("people");
         return collection.find(eq("_id", new ObjectId(createdId))).first();
+    }
+
+    private void loadTestData(String testFileName) throws IOException {
+        final File testDataDir = new File("src/test/data");
+        final File testDataFile = new File(testDataDir, testFileName);
+        for (CSVRecord csvRecord: CSVParser.parse(testDataFile, Charset.defaultCharset(), CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
+            final TestPerson.Builder builder = new TestPerson.Builder()
+                    .withEmailAddress(csvRecord.get("email"))
+                    .withUsername((csvRecord.get("first_name") + "." + csvRecord.get("last_name")).toLowerCase())
+                    .withGivenNames(csvRecord.get("first_name"))
+                    .withFamilyName(csvRecord.get("last_name"));
+            peopleCollection.insertOne(builder.getDocument());
+        }
     }
 
     private static <T> Matcher<String> matchesPattern(final String expectedPattern) {
@@ -283,7 +415,7 @@ public class PersonServiceTest {
         public ConstraintViolation() {
         }
 
-        public String getPropertyName() {
+        String getPropertyName() {
             return propertyName;
         }
 
@@ -291,7 +423,7 @@ public class PersonServiceTest {
             this.propertyName = propertyName;
         }
 
-        public String getMessage() {
+        String getMessage() {
             return message;
         }
 
@@ -299,7 +431,7 @@ public class PersonServiceTest {
             this.message = message;
         }
 
-        public String getInvalidValue() {
+        String getInvalidValue() {
             return invalidValue;
         }
 

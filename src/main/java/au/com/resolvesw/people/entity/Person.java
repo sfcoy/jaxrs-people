@@ -1,14 +1,18 @@
 package au.com.resolvesw.people.entity;
 
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Objects;
 
+import javax.json.Json;
+import javax.json.JsonObject;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.PrePersist;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -24,7 +28,10 @@ import org.hibernate.validator.constraints.NotBlank;
 public class Person implements Serializable {
 
     private static final long serialVersionUID = 6946537000698428498L;
-    
+
+    // Lifted from org.hibernate.ogm.type.descriptor.impl.CalendarTimeZoneDateTimeTypeDescriptor
+    private static final String ISO8601_DATE_TIME_TIMEZONE_FORMAT = "yyyy-MM-dd'T'HH:mm:ss:SSSz";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Type(type = "objectid")
@@ -50,11 +57,9 @@ public class Person implements Serializable {
 
     public Person(String username) {
         this.username = username;
-        startDate = Calendar.getInstance();
     }
 
     protected Person() {
-        startDate = Calendar.getInstance();
     }
 
     public String getId() {
@@ -97,6 +102,34 @@ public class Person implements Serializable {
         this.emailAddress = emailAddress;
     }
 
+    @PrePersist
+    void onPrePersist() {
+        startDate = Calendar.getInstance();
+    }
+
+    public JsonObject toJson() {
+        return Json.createObjectBuilder()
+                .add("id", id)
+                .add("username", username)
+                .add("familyName", familyName)
+                .add("givenNames", givenNames)
+                .add("emailAddress", emailAddress)
+                .add("startDate", createDateTimeTimeZoneFormat().format(startDate.getTime()))
+                .build();
+    }
+
+    @Override
+    public String toString() {
+        return "Person{" +
+                "id='" + id + '\'' +
+                ", username='" + username + '\'' +
+                ", familyName='" + familyName + '\'' +
+                ", givenNames='" + givenNames + '\'' +
+                ", emailAddress='" + emailAddress + '\'' +
+                ", startDate=" + startDate +
+                '}';
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -109,4 +142,11 @@ public class Person implements Serializable {
     public int hashCode() {
         return Objects.hash(username);
     }
+
+    static SimpleDateFormat createDateTimeTimeZoneFormat() {
+        SimpleDateFormat dateTimeTimeZoneFormat = new SimpleDateFormat(ISO8601_DATE_TIME_TIMEZONE_FORMAT);
+        dateTimeTimeZoneFormat.setLenient( false );
+        return dateTimeTimeZoneFormat;
+    }
+
 }
