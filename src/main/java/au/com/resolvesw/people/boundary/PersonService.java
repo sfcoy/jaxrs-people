@@ -12,6 +12,8 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Root;
 import javax.validation.Valid;
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -65,7 +67,7 @@ public class PersonService {
     @GET
     @Path("/")
     @Produces(APPLICATION_JSON)
-    public Response getPeople(@QueryParam("page") int page, @QueryParam("pageSize") int pageSize) {
+    public Response getPeople(@QueryParam("page") @Min(0) int page, @QueryParam("pageSize") @Max(100) int pageSize) {
         final JpaPager pager = new JpaPager(page, pageSize);
         final CriteriaBuilder cb = em.getCriteriaBuilder();
         final CriteriaQuery<Person> cq = cb.createQuery(Person.class);

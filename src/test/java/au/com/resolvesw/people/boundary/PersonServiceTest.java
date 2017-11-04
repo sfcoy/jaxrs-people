@@ -368,6 +368,33 @@ public class PersonServiceTest {
         assertThat(lastPersonFound.familyName, is("Delacruz"));
     }
 
+    @Test
+    @RunAsClient
+    public void shouldFailToFindLotsOfPeople(@ArquillianResource URL resource) throws URISyntaxException, IOException {
+        loadTestData("au-500.csv");
+        final Response response = ClientBuilder.newClient()
+                .target(resource.toURI())
+                .path("resources/people/")
+                .queryParam("page", 0)
+                .queryParam("pageSize", 200)
+                .request()
+                .accept(MediaType.APPLICATION_JSON_TYPE)
+                .buildGet()
+                .invoke();
+
+        assertThat(response.getStatus(), is(HttpServletResponse.SC_BAD_REQUEST));
+        assertThat(response.hasEntity(), is(true));
+
+        assertThat(response.getStatus(), is(HttpServletResponse.SC_BAD_REQUEST));
+        assertThat(response.hasEntity(), is(true));
+        final List<ConstraintViolation> constraintViolations = response.readEntity(ConstraintViolation.genericType);
+        assertThat(constraintViolations, is(not(empty())));
+        final ConstraintViolation constraintViolation = constraintViolations.get(0);
+        assertThat(constraintViolation.getPropertyName(), endsWith("arg1"));
+        assertThat(constraintViolation.getMessage(), is("must be less than or equal to 100"));
+        assertThat(constraintViolation.getInvalidValue(), is("200"));
+    }
+
     private Document findMongoDocumentWithId(String createdId) {
         final MongoCollection<Document> collection = mongoDatabase.getCollection("people");
         return collection.find(eq("_id", new ObjectId(createdId))).first();
