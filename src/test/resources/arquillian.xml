@@ -7,7 +7,7 @@
     <defaultProtocol type="Servlet 3.0" />
     
     <extension qualifier="docker">
-        <property name="serverVersion">1.32</property>
+        <property name="serverVersion">1.24</property>
         <property name="serverUri">unix:///var/run/docker.sock</property>
         <property name="definitionFormat">CUBE</property>
         <property name="tlsVerify">false</property>
